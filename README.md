@@ -78,3 +78,17 @@ npm run knip
 # Проверка форматирования кода Prettier
 npm run format
 ```
+
+---
+
+## Деплой на GitHub Pages
+
+В проекте уже настроены относительные пути сборки (`base: './'` в `vite.config.ts`) и готовый пайплайн GitHub Actions (`.github/workflows/deploy.yml`).
+
+Для включения автоматической публикации на GitHub Pages:
+
+1. Загрузите репозиторий на GitHub (ветка `main`).
+2. Перейдите в настройки репозитория: **Settings → Pages**.
+3. В разделе **Build and deployment → Source** выберите **GitHub Actions**.
+4. При каждом пуше в ветку `main` workflow автоматически запустит тесты `Vitest`, соберёт проект (`npm run build`) и опубликует папку `dist/` на GitHub Pages.
+
