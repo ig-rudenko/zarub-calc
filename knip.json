@@ -14,7 +14,6 @@
     "lucide-react",
     "motion",
     "react",
-    "react-dom",
-    "typescript-eslint"
+    "react-dom"
   ]
 }

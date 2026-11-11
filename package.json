@@ -1,5 +1,5 @@
 {
-  "name": "react-example",
+  "name": "zarub-calc",
   "private": true,
   "version": "0.0.0",
   "type": "module",
@@ -31,7 +31,6 @@
     "prettier": "^3.9.10",
     "react": "^19.0.1",
     "react-dom": "^19.0.1",
-    "typescript-eslint": "^8.72.1",
     "vite": "^8.3.0",
     "vitest": "^5.1.0",
     "vue": "^3.5.45"
