@@ -1,0 +1,6 @@
+{
+  "name": "ZarubCalc — Калькулятор пополнения карты zarub.io",
+  "description": "Точный расчёт и сравнение стоимости пополнения карты Visa в сервисе zarub.io из рублей: через СБП напрямую или через покупку USDT на whitebird.io.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

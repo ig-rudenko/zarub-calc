@@ -1,0 +1,20 @@
+{
+  "$schema": "https://unpkg.com/knip@5/schema.json",
+  "project": ["src/**/*.{ts,vue,css}", "tests/**/*.ts"],
+  "ignore": ["eslint.config.js"],
+  "ignoreDependencies": [
+    "@google/genai",
+    "@vitejs/plugin-react",
+    "@types/express",
+    "@types/react",
+    "@types/react-dom",
+    "autoprefixer",
+    "dotenv",
+    "express",
+    "lucide-react",
+    "motion",
+    "react",
+    "react-dom",
+    "typescript-eslint"
+  ]
+}
