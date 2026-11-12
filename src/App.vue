@@ -11,14 +11,11 @@ const {
   summary,
   cryptoOptions,
   isDark,
-  isLoadingRate,
-  rateSourceNote,
   rateHistory,
   toggleTheme,
   setMode,
   setCryptoAsset,
   resetToDefaults,
-  fetchLiveUsdtRate,
   recordRateHistory,
   deleteRateHistoryEntry,
   selectRateFromHistory,
@@ -55,12 +52,9 @@ const {
       <CalculatorControls
         :params="params"
         :crypto-options="cryptoOptions"
-        :is-loading-rate="isLoadingRate"
-        :rate-source-note="rateSourceNote"
         :rate-history="rateHistory"
         @set-mode="setMode"
         @set-crypto-asset="setCryptoAsset"
-        @fetch-live-rate="fetchLiveUsdtRate"
         @reset-defaults="resetToDefaults"
         @record-rate="recordRateHistory"
         @delete-rate-entry="deleteRateHistoryEntry"

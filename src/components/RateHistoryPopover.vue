@@ -8,12 +8,12 @@ const props = withDefaults(
   defineProps<{
     title: string;
     unitLabel: string;
-    currentValue: number;
+    currentValue: number | null | undefined;
     entries: RateHistoryEntry[];
     fractionDigits?: number;
   }>(),
   {
-    fractionDigits: 2,
+    fractionDigits: 4,
   },
 );
 
@@ -24,6 +24,14 @@ const emit = defineEmits<{
 }>();
 
 const isOpen = ref(false);
+
+function formatRateValue(val: number): string {
+  if (!Number.isFinite(val)) return '0,00';
+  return new Intl.NumberFormat('ru-RU', {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: props.fractionDigits,
+  }).format(val);
+}
 
 /** Список записей от новых к старым с расчётом дельты к предыдущему значению */
 const enrichedEntries = computed(() => {
@@ -120,13 +128,14 @@ function handlePick(val: number) {
         </span>
         <div class="flex items-center gap-1.5">
           <button
+            v-if="typeof currentValue === 'number' && currentValue > 0"
             type="button"
             class="inline-flex items-center gap-1 rounded-md border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 px-2 py-1 text-[11px] font-medium text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors whitespace-nowrap shrink-0 cursor-pointer"
             title="Сохранить текущее значение в историю"
             @click="emit('saveCurrent')"
           >
             <Plus class="h-3 w-3" />
-            <span>Записать {{ formatNumber(currentValue, fractionDigits) }}</span>
+            <span>Записать {{ formatRateValue(currentValue) }}</span>
           </button>
           <button
             type="button"

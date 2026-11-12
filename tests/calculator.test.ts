@@ -66,14 +66,15 @@ describe('Whitebird.io Reference Example Verification (9 013.92 RUB -> 104.53 US
   });
 });
 
-describe('Network-Specific Commissions: USDT (TON), TRX, and GRAM', () => {
-  it('calculates USDT via TON network (Zarub 5% ceil, Whitebird 3.2% service, 0 USDT network fee)', () => {
+describe('Network-Specific Commissions & Per-Crypto Whitebird RUB / Zarub USD Rates', () => {
+  it('calculates USDT via TON network (Zarub 5% ceil, 1 USDT = $1, Whitebird 83.5859 RUB/USDT, 3.2% service, 0 USDT network fee)', () => {
     const meta = CRYPTO_ASSETS.USDT_TON;
     const res = calculateWhitebirdRoute({
       ...DEFAULT_CALCULATOR_PARAMS,
       mode: 'wallet_usd',
       inputValue: 50,
       cryptoAsset: 'USDT_TON',
+      whitebirdUsdtRate: 83.5859,
       zarubCryptoFeePercent: meta.zarubFeePercent,
       whitebirdFeePercent: meta.defaultWhitebirdFeePercent,
       whitebirdNetworkFeeUsdt: meta.defaultNetworkFeeCrypto,
@@ -84,15 +85,18 @@ describe('Network-Specific Commissions: USDT (TON), TRX, and GRAM', () => {
     expect(res.usdtSentToZarub).toBe(53);
     expect(res.blockchainNetworkFeeUsdt).toBe(0);
     expect(res.blockchainNetworkFeeRub).toBe(0);
+    // 53 * 83.5859 = 4430.0527 RUB -> / (1 - 0.032) = 4576.5007 -> ceil2 = 4576.51 RUB
+    expect(res.totalRub).toBe(4576.51);
   });
 
-  it('calculates TRX route (Zarub 3% ceil, 1 TRX = $0.28, Whitebird 3.2% service, 0.263 TRX network fee)', () => {
+  it('calculates TRX route (Zarub 3% ceil, 1 TRX = $0.28 in Zarub, 1 TRX = 26.3881 RUB in Whitebird, 3.2% service, 0.263 TRX network fee)', () => {
     const meta = CRYPTO_ASSETS.TRX;
     const res = calculateWhitebirdRoute({
       ...DEFAULT_CALCULATOR_PARAMS,
       mode: 'wallet_usd',
       inputValue: 67,
       cryptoAsset: 'TRX',
+      whitebirdTrxRubRate: 26.3881,
       zarubTrxUsdRate: 0.28,
       zarubCryptoFeePercent: meta.zarubFeePercent,
       whitebirdFeePercent: meta.defaultWhitebirdFeePercent,
@@ -106,27 +110,32 @@ describe('Network-Specific Commissions: USDT (TON), TRX, and GRAM', () => {
     expect(res.usdtSentToZarub).toBe(250);
     expect(res.blockchainNetworkFeeUsdt).toBe(0.263);
     expect(res.grossUsdtBought).toBe(250.263);
+    // 250.263 TRX * 26.3881 RUB/TRX = 6603.96507... -> / (1 - 0.032) = 6822.2779... -> ceil2 = 6822.28 RUB
+    expect(res.totalRub).toBe(6822.28);
   });
 
-  it('calculates GRAM route (Zarub 3% ceil, 1 GRAM = $0.84, Whitebird 2.5% service, 0 GRAM network fee)', () => {
+  it('calculates GRAM route (Zarub 3% ceil, 1 GRAM = $0.97 in Zarub, 1 GRAM = 104.6495 RUB in Whitebird, 2.5% service, 0 GRAM network fee)', () => {
     const meta = CRYPTO_ASSETS.GRAM;
     const res = calculateWhitebirdRoute({
       ...DEFAULT_CALCULATOR_PARAMS,
       mode: 'wallet_usd',
-      inputValue: 81,
+      inputValue: 94,
       cryptoAsset: 'GRAM',
-      zarubGramUsdRate: 0.84,
+      whitebirdGramRubRate: 104.6495,
+      zarubGramUsdRate: 0.97,
       zarubCryptoFeePercent: meta.zarubFeePercent,
       whitebirdFeePercent: meta.defaultWhitebirdFeePercent,
       whitebirdNetworkFeeUsdt: meta.defaultNetworkFeeCrypto,
     });
 
-    // 3% от $81 = 2.43 -> ceil = $3 -> всего $84 эквивалента
-    // При 1 GRAM = $0.84: $84 / 0.84 = 100 GRAM
+    // 3% от $94 = 2.82 -> ceil = $3 -> всего $97 эквивалента
+    // При 1 GRAM = $0.97: $97 / 0.97 = 100 GRAM
     expect(res.zarubCryptoFeeUsd).toBe(3);
-    expect(res.usdEquivalentSentToZarub).toBe(84);
+    expect(res.usdEquivalentSentToZarub).toBe(97);
     expect(res.usdtSentToZarub).toBe(100);
     expect(res.blockchainNetworkFeeUsdt).toBe(0);
+    // 100 GRAM * 104.6495 RUB = 10464.95 RUB -> / (1 - 0.025) = 10733.28205... -> ceil2 = 10733.29 RUB
+    expect(res.totalRub).toBe(10733.29);
   });
 });
 
@@ -152,9 +161,25 @@ describe('Zarub Balance to Visa Card Transfer (1.5% fixed fee deducted from wall
 });
 
 describe('Full Route Calculations & Comparison (Method 1 SBP vs Method 2 Whitebird)', () => {
+  it('leaves rate fields empty (null) by default and returns 0 until rates are entered', () => {
+    expect(DEFAULT_CALCULATOR_PARAMS.zarubUsdRate).toBeNull();
+    expect(DEFAULT_CALCULATOR_PARAMS.whitebirdUsdtRate).toBeNull();
+    expect(DEFAULT_CALCULATOR_PARAMS.whitebirdTrxRubRate).toBeNull();
+    expect(DEFAULT_CALCULATOR_PARAMS.whitebirdGramRubRate).toBeNull();
+    expect(DEFAULT_CALCULATOR_PARAMS.zarubTrxUsdRate).toBeNull();
+    expect(DEFAULT_CALCULATOR_PARAMS.zarubGramUsdRate).toBeNull();
+
+    const emptyComparison = compareRoutes(DEFAULT_CALCULATOR_PARAMS);
+    expect(emptyComparison.sbp.totalRub).toBe(0);
+    expect(emptyComparison.whitebird.totalRub).toBe(0);
+    expect(emptyComparison.cheaperMethod).toBe('equal');
+  });
+
   it('calculates both routes in card_usd mode with USDT_TRC20 and identifies Whitebird as cheaper', () => {
     const comparison = compareRoutes({
       ...DEFAULT_CALCULATOR_PARAMS,
+      zarubUsdRate: 101.5,
+      whitebirdUsdtRate: 82.37,
       cryptoAsset: 'USDT_TRC20',
       whitebirdNetworkFeeUsdt: 2.16763,
       mode: 'card_usd',
@@ -174,6 +199,7 @@ describe('Full Route Calculations & Comparison (Method 1 SBP vs Method 2 Whitebi
   it('enforces minimum 1 RUB SBP fee in Method 1 for tiny amounts', () => {
     const sbpTiny = calculateSbpRoute({
       ...DEFAULT_CALCULATOR_PARAMS,
+      zarubUsdRate: 101.5,
       mode: 'wallet_usd',
       inputValue: 0.05,
     });
@@ -194,49 +220,43 @@ describe('Full Route Calculations & Comparison (Method 1 SBP vs Method 2 Whitebi
     expect(comparison.cheaperMethod).toBe('whitebird_crypto');
     expect(comparison.extraCardUsd).toBeGreaterThan(15);
   });
-
-  it('handles zero input gracefully across all modes', () => {
-    const zeroResult = compareRoutes({
-      ...DEFAULT_CALCULATOR_PARAMS,
-      inputValue: 0,
-    });
-    expect(zeroResult.sbp.totalRub).toBe(0);
-    expect(zeroResult.whitebird.totalRub).toBe(0);
-    expect(zeroResult.cheaperMethod).toBe('equal');
-  });
 });
 
-describe('Vue 3 Component Tree Integration & Conditional Coin Rate Inputs', () => {
-  it('defaults to GRAM and toggles TRX / USDT rate fields when switching networks', async () => {
+describe('Vue 3 Component Tree Integration & Dynamic Whitebird / Zarub Rate Inputs', () => {
+  it('renders empty rate fields by default, whitebird.io/exchanger link, and switches rate inputs per crypto', async () => {
     const wrapper = mount(App);
     expect(wrapper.text()).toContain('ZarubCalc');
-    expect(wrapper.text()).toContain('Способ 1 · Напрямую в Zarub по СБП');
-    expect(wrapper.text()).toContain('Способ 2 · Через Whitebird (GRAM · TON)');
 
-    // По умолчанию выбран GRAM — поле GRAM отображается, а TRX скрыто
-    expect(wrapper.find('#zarub-gram-rate-input').exists()).toBe(true);
-    expect(wrapper.find('#zarub-trx-rate-input').exists()).toBe(false);
+    // Ссылка на курсы Whitebird должна присутствовать
+    const wbLink = wrapper.find('a[href="https://whitebird.io/exchanger"]');
+    expect(wbLink.exists()).toBe(true);
 
-    // Проверяем быстрые кнопки выбора суммы ($10, $20, $50, $100)
-    const preset10Btn = wrapper.findAll('button').find((b) => b.text() === '$10');
-    expect(preset10Btn).toBeDefined();
-    await preset10Btn!.trigger('click');
-    expect(wrapper.text()).toContain('$10,00');
+    // По умолчанию выбран GRAM: отображаются поля Whitebird GRAM и Zarub GRAM, оба пустые по умолчанию
+    const wbGramInput = wrapper.find('#whitebird-gram-rate-input');
+    const zarubGramInput = wrapper.find('#zarub-gram-rate-input');
+    expect(wbGramInput.exists()).toBe(true);
+    expect(zarubGramInput.exists()).toBe(true);
+    expect((wbGramInput.element as HTMLInputElement).value).toBe('');
+    expect((zarubGramInput.element as HTMLInputElement).value).toBe('');
 
     // Переключаем на TRX
     const trxBtn = wrapper.findAll('button').find((b) => b.text().includes('TRX · TRON'));
     expect(trxBtn).toBeDefined();
     await trxBtn!.trigger('click');
 
+    expect(wrapper.find('#whitebird-trx-rate-input').exists()).toBe(true);
     expect(wrapper.find('#zarub-trx-rate-input').exists()).toBe(true);
-    expect(wrapper.find('#zarub-gram-rate-input').exists()).toBe(false);
+    expect(wrapper.find('#whitebird-gram-rate-input').exists()).toBe(false);
 
-    // Переключаем на USDT TRC-20 — оба дополнительных поля скрыты
+    // Переключаем на USDT TRC-20 — поле Whitebird USDT активно, а поле Zarub USDT фиксировано 1 к 1
     const usdtBtn = wrapper.findAll('button').find((b) => b.text().includes('USDT · TRC-20'));
     expect(usdtBtn).toBeDefined();
     await usdtBtn!.trigger('click');
 
-    expect(wrapper.find('#zarub-trx-rate-input').exists()).toBe(false);
-    expect(wrapper.find('#zarub-gram-rate-input').exists()).toBe(false);
+    expect(wrapper.find('#whitebird-usdt-rate-input').exists()).toBe(true);
+    const zarubUsdtInput = wrapper.find('#zarub-usdt-rate-input');
+    expect(zarubUsdtInput.exists()).toBe(true);
+    expect((zarubUsdtInput.element as HTMLInputElement).value).toBe('1');
+    expect((zarubUsdtInput.element as HTMLInputElement).disabled).toBe(true);
   });
 });

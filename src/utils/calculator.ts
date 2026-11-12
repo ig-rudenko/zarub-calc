@@ -57,15 +57,17 @@ export const CRYPTO_ASSETS: Record<CryptoAssetId, CryptoAssetOption> = {
 export const DEFAULT_CALCULATOR_PARAMS: CalculatorParams = {
   mode: 'card_usd',
   inputValue: 100,
-  zarubUsdRate: 101.5,
+  zarubUsdRate: null,
   zarubSbpFeePercent: 7,
   zarubSbpMinFeeRub: 1,
-  whitebirdUsdtRate: 82.37,
+  whitebirdUsdtRate: null,
+  whitebirdTrxRubRate: null,
+  whitebirdGramRubRate: null,
   whitebirdFeePercent: 2.5,
   whitebirdNetworkFeeUsdt: 0,
   cryptoAsset: 'GRAM',
-  zarubTrxUsdRate: 0.28,
-  zarubGramUsdRate: 0.84,
+  zarubTrxUsdRate: null,
+  zarubGramUsdRate: null,
   zarubCryptoFeePercent: 3,
   zarubCryptoMinFeeUsd: 1,
   zarubCardTransferFeePercent: 1.5,
@@ -82,8 +84,6 @@ export const WHITEBIRD_REFERENCE_EXAMPLE: Partial<CalculatorParams> = {
   whitebirdFeePercent: 2.5,
   whitebirdNetworkFeeUsdt: 2.16763,
   cryptoAsset: 'USDT_TRC20',
-  zarubTrxUsdRate: 0.28,
-  zarubGramUsdRate: 0.84,
   zarubCryptoFeePercent: 3,
   zarubCryptoMinFeeUsd: 1,
   zarubCardTransferFeePercent: 1.5,
@@ -114,17 +114,38 @@ function round5(value: number): number {
 }
 
 /**
+ * Возвращает курс покупки 1 единицы выбранной криптовалюты в рублях в whitebird.io:
+ * - Для GRAM: params.whitebirdGramRubRate (₽ / GRAM)
+ * - Для TRX: params.whitebirdTrxRubRate (₽ / TRX)
+ * - Для USDT (TRC-20 и TON): params.whitebirdUsdtRate (₽ / USDT)
+ */
+function getWhitebirdCoinRubRate(params: CalculatorParams): number {
+  if (params.cryptoAsset === 'GRAM') {
+    const val = Number(params.whitebirdGramRubRate);
+    return Number.isFinite(val) && val > 0 ? val : 0;
+  }
+  if (params.cryptoAsset === 'TRX') {
+    const val = Number(params.whitebirdTrxRubRate);
+    return Number.isFinite(val) && val > 0 ? val : 0;
+  }
+  const val = Number(params.whitebirdUsdtRate);
+  return Number.isFinite(val) && val > 0 ? val : 0;
+}
+
+/**
  * Возвращает курс выбранной монеты к доллару внутри zarub.io:
- * - Для USDT (TRC-20 и TON): 1 USDT = 1 $
- * - Для TRX: params.zarubTrxUsdRate (по умолчанию 0.28 $)
- * - Для GRAM: params.zarubGramUsdRate (по умолчанию 0.84 $)
+ * - Для USDT (TRC-20 и TON): 1 USDT = 1 $ (1 к 1)
+ * - Для TRX: params.zarubTrxUsdRate (например 0.28 $)
+ * - Для GRAM: params.zarubGramUsdRate (например 0.97 $)
  */
 function getCryptoCoinUsdRate(params: CalculatorParams): number {
   if (params.cryptoAsset === 'TRX') {
-    return Math.max(0.0001, Number(params.zarubTrxUsdRate) || 0.28);
+    const val = Number(params.zarubTrxUsdRate);
+    return Number.isFinite(val) && val > 0 ? val : 0;
   }
   if (params.cryptoAsset === 'GRAM') {
-    return Math.max(0.0001, Number(params.zarubGramUsdRate) || 0.84);
+    const val = Number(params.zarubGramUsdRate);
+    return Number.isFinite(val) && val > 0 ? val : 0;
   }
   return 1;
 }
@@ -187,16 +208,16 @@ export function calculateCardFromBalance(
 }
 
 /**
- * Расчёт прямой конвертации в Whitebird.io из рублей в криптовалюту по СБП.
+ * Расчёт прямой конвертации в Whitebird.io из рублей в выбранную криптовалюту по СБП.
+ * `rateRubPerCoin` — курс 1 монеты (USDT, TRX или GRAM) в рублях на whitebird.io.
  * Точно воспроизводит эталонный пример:
  * Продаю 9 013.92 RUB -> Комиссия сервиса 225.35 RUB (2.5%) -> Курс 82.37 -> Сеть 2.16763 USDT -> Получаю 104.53 USDT.
  */
 export function calculateWhitebirdFromRub(
   totalRub: number,
-  rateRubPerUsdt = 82.37,
+  rateRubPerCoin = 82.37,
   serviceFeePercent = 2.5,
   networkFeeCoins = 2.16763,
-  coinUsdRate = 1,
 ): {
   totalRub: number;
   serviceFeeRub: number;
@@ -205,7 +226,7 @@ export function calculateWhitebirdFromRub(
   networkFeeUsdt: number;
   usdtReceived: number;
 } {
-  if (!Number.isFinite(totalRub) || totalRub <= 0 || rateRubPerUsdt <= 0 || coinUsdRate <= 0) {
+  if (!Number.isFinite(totalRub) || totalRub <= 0 || rateRubPerCoin <= 0) {
     return {
       totalRub: 0,
       serviceFeeRub: 0,
@@ -218,8 +239,7 @@ export function calculateWhitebirdFromRub(
   const cleanRub = round2(totalRub);
   const serviceFeeRub = round2((cleanRub * serviceFeePercent) / 100);
   const rubConverted = round2(cleanRub - serviceFeeRub);
-  const coinRateInRub = rateRubPerUsdt * coinUsdRate;
-  const grossCoins = rubConverted / coinRateInRub;
+  const grossCoins = rubConverted / rateRubPerCoin;
   const rawReceivedCoins = grossCoins - networkFeeCoins;
   const coinsReceived = rawReceivedCoins > 0 ? round2(rawReceivedCoins) : 0;
 
@@ -236,15 +256,15 @@ export function calculateWhitebirdFromRub(
 /**
  * Обратный расчёт для Whitebird.io: сколько рублей нужно отдать по СБП,
  * чтобы на внешний адрес zarub.io пришло ровно `targetCoinsReceived` единиц криптовалюты (USDT, TRX или GRAM).
+ * `rateRubPerCoin` — курс 1 монеты (USDT, TRX или GRAM) в рублях на whitebird.io.
  * Учитывает, что комиссия Whitebird (2.5% или 3.2%) берётся от итоговой суммы в рублях:
  * totalRub * (1 - serviceFeePercent / 100) = rubConverted.
  */
 export function calculateWhitebirdRubNeededForUsdt(
   targetCoinsReceived: number,
-  rateRubPerUsdt = 82.37,
+  rateRubPerCoin = 82.37,
   serviceFeePercent = 2.5,
   networkFeeCoins = 2.16763,
-  coinUsdRate = 1,
 ): {
   totalRub: number;
   serviceFeeRub: number;
@@ -256,8 +276,7 @@ export function calculateWhitebirdRubNeededForUsdt(
   if (
     !Number.isFinite(targetCoinsReceived) ||
     targetCoinsReceived <= 0 ||
-    rateRubPerUsdt <= 0 ||
-    coinUsdRate <= 0 ||
+    rateRubPerCoin <= 0 ||
     serviceFeePercent >= 100
   ) {
     return {
@@ -271,8 +290,7 @@ export function calculateWhitebirdRubNeededForUsdt(
   }
   const usdtReceived = round2(targetCoinsReceived);
   const grossUsdt = round5(usdtReceived + networkFeeCoins);
-  const coinRateInRub = rateRubPerUsdt * coinUsdRate;
-  const rubConvertedRaw = grossUsdt * coinRateInRub;
+  const rubConvertedRaw = grossUsdt * rateRubPerCoin;
   const totalRub = ceil2(rubConvertedRaw / (1 - serviceFeePercent / 100));
   const serviceFeeRub = round2((totalRub * serviceFeePercent) / 100);
   const rubConverted = round2(totalRub - serviceFeeRub);
@@ -308,8 +326,11 @@ export function formatUsd(value: number): string {
  */
 export function calculateSbpRoute(params: CalculatorParams): SbpRouteResult {
   const safeInput = Math.max(0, Number(params.inputValue) || 0);
-  const zarubRate = Math.max(0.01, Number(params.zarubUsdRate) || 101.5);
-  const wbReferenceRate = Math.max(0.01, Number(params.whitebirdUsdtRate) || 82.37);
+  const zarubRate = Math.max(0, Number(params.zarubUsdRate) || 0);
+  const wbCoinRubRate = getWhitebirdCoinRubRate(params);
+  const coinUsdRate = getCryptoCoinUsdRate(params);
+  const wbEffectiveUsdRate = wbCoinRubRate > 0 && coinUsdRate > 0 ? wbCoinRubRate / coinUsdRate : 0;
+
   const sbpFeePercent = Math.max(0, Math.min(99, Number(params.zarubSbpFeePercent) || 0));
   const sbpMinFeeRub = Math.max(0, Number(params.zarubSbpMinFeeRub) || 0);
   const cardFeePercent = Math.max(0, Number(params.zarubCardTransferFeePercent) || 0);
@@ -321,7 +342,7 @@ export function calculateSbpRoute(params: CalculatorParams): SbpRouteResult {
   let cardTransferFeeUsd = 0;
   let finalCardUsd = 0;
 
-  if (safeInput > 0) {
+  if (safeInput > 0 && zarubRate > 0) {
     if (params.mode === 'card_usd') {
       const cardCalc = calculateBalanceNeededForCard(safeInput, cardFeePercent);
       walletBalanceUsd = cardCalc.walletBalanceUsd;
@@ -361,8 +382,10 @@ export function calculateSbpRoute(params: CalculatorParams): SbpRouteResult {
 
   const cardFeeInRubAtZarubRate = round2(cardTransferFeeUsd * zarubRate);
   const explicitFeesRub = round2(sbpFeeRub + cardFeeInRubAtZarubRate);
-  const usefulValueRub = round2(finalCardUsd * wbReferenceRate);
-  const spreadCostRub = Math.max(0, round2(totalRub - explicitFeesRub - usefulValueRub));
+  const referenceUsdRate = wbEffectiveUsdRate > 0 ? wbEffectiveUsdRate : zarubRate;
+  const usefulValueRub = round2(finalCardUsd * referenceUsdRate);
+  const spreadCostRub =
+    wbEffectiveUsdRate > 0 ? Math.max(0, round2(totalRub - explicitFeesRub - usefulValueRub)) : 0;
   const totalCommissionRubEquivalent = Math.max(0, round2(totalRub - usefulValueRub));
 
   const totalLossPercent =
@@ -373,11 +396,13 @@ export function calculateSbpRoute(params: CalculatorParams): SbpRouteResult {
   const effectiveRateRubPerWalletUsd =
     walletBalanceUsd > 0 ? round2(totalRub / walletBalanceUsd) : 0;
 
+  const rateText = zarubRate > 0 ? `${formatNumber(zarubRate, 2)} ₽/$` : 'не указан';
+
   const steps = [
     {
       id: 'sbp_pay',
       title: 'Оплата по СБП в zarub.io',
-      subtitle: `Курс ${formatNumber(zarubRate, 2)} ₽/$ + комиссия СБП ${formatNumber(sbpFeePercent, 1)}% (мин. ${formatNumber(sbpMinFeeRub, 0)} ₽)`,
+      subtitle: `Курс ${rateText} + комиссия СБП ${formatNumber(sbpFeePercent, 1)}% (мин. ${formatNumber(sbpMinFeeRub, 0)} ₽)`,
       amountFormatted: formatRub(totalRub),
       feeFormatted: `Комиссия СБП: ${formatRub(sbpFeeRub)}`,
       copyValue: totalRub.toFixed(2),
@@ -385,7 +410,10 @@ export function calculateSbpRoute(params: CalculatorParams): SbpRouteResult {
     {
       id: 'zarub_wallet',
       title: 'Зачисление на кошелёк Zarub',
-      subtitle: `Конвертация ${formatRub(baseRubBeforeSbpFee)} по внутреннему курсу ${formatNumber(zarubRate, 2)} ₽/$`,
+      subtitle:
+        zarubRate > 0
+          ? `Конвертация ${formatRub(baseRubBeforeSbpFee)} по внутреннему курсу ${formatNumber(zarubRate, 2)} ₽/$`
+          : 'Укажите курс 1 USD в Zarub.io (СБП) для расчёта',
       amountFormatted: formatUsd(walletBalanceUsd),
       feeFormatted:
         spreadCostRub > 0
@@ -430,7 +458,8 @@ export function calculateSbpRoute(params: CalculatorParams): SbpRouteResult {
  */
 export function calculateWhitebirdRoute(params: CalculatorParams): WhitebirdRouteResult {
   const safeInput = Math.max(0, Number(params.inputValue) || 0);
-  const wbRate = Math.max(0.01, Number(params.whitebirdUsdtRate) || 82.37);
+  const wbCoinRubRate = getWhitebirdCoinRubRate(params);
+  const coinUsdRate = getCryptoCoinUsdRate(params);
   const wbFeePercent = Math.max(0, Math.min(99, Number(params.whitebirdFeePercent) || 0));
   const networkFeeCoins = Math.max(0, Number(params.whitebirdNetworkFeeUsdt) || 0);
   const zarubCryptoFeePercent = Math.max(0, Number(params.zarubCryptoFeePercent) || 0);
@@ -438,8 +467,6 @@ export function calculateWhitebirdRoute(params: CalculatorParams): WhitebirdRout
   const cardFeePercent = Math.max(0, Number(params.zarubCardTransferFeePercent) || 0);
 
   const assetMeta = CRYPTO_ASSETS[params.cryptoAsset] ?? CRYPTO_ASSETS.GRAM;
-  const coinUsdRate = getCryptoCoinUsdRate(params);
-  const coinRubRate = round2(wbRate * coinUsdRate);
 
   let totalRub = 0;
   let whitebirdServiceFeeRub = 0;
@@ -453,7 +480,7 @@ export function calculateWhitebirdRoute(params: CalculatorParams): WhitebirdRout
   let cardTransferFeeUsd = 0;
   let finalCardUsd = 0;
 
-  if (safeInput > 0) {
+  if (safeInput > 0 && wbCoinRubRate > 0 && coinUsdRate > 0) {
     if (params.mode === 'card_usd' || params.mode === 'wallet_usd') {
       const cardCalc =
         params.mode === 'card_usd'
@@ -480,10 +507,9 @@ export function calculateWhitebirdRoute(params: CalculatorParams): WhitebirdRout
 
       const wbCalc = calculateWhitebirdRubNeededForUsdt(
         usdtSentToZarub,
-        wbRate,
+        wbCoinRubRate,
         wbFeePercent,
         networkFeeCoins,
-        coinUsdRate,
       );
       totalRub = wbCalc.totalRub;
       whitebirdServiceFeeRub = wbCalc.serviceFeeRub;
@@ -494,10 +520,9 @@ export function calculateWhitebirdRoute(params: CalculatorParams): WhitebirdRout
       // mode === 'budget_rub'
       const wbCalc = calculateWhitebirdFromRub(
         safeInput,
-        wbRate,
+        wbCoinRubRate,
         wbFeePercent,
         networkFeeCoins,
-        coinUsdRate,
       );
       totalRub = wbCalc.totalRub;
       whitebirdServiceFeeRub = wbCalc.serviceFeeRub;
@@ -525,12 +550,14 @@ export function calculateWhitebirdRoute(params: CalculatorParams): WhitebirdRout
     }
   }
 
-  const blockchainNetworkFeeRub = round2(actualNetworkFeeCoins * coinUsdRate * wbRate);
-  const zarubCryptoFeeRub = round2(zarubCryptoFeeUsd * wbRate);
-  const cardTransferFeeRub = round2(cardTransferFeeUsd * wbRate);
+  const effectiveWbRubPerUsd =
+    wbCoinRubRate > 0 && coinUsdRate > 0 ? wbCoinRubRate / coinUsdRate : 0;
+  const blockchainNetworkFeeRub = round2(actualNetworkFeeCoins * wbCoinRubRate);
+  const zarubCryptoFeeRub = round2(zarubCryptoFeeUsd * effectiveWbRubPerUsd);
+  const cardTransferFeeRub = round2(cardTransferFeeUsd * effectiveWbRubPerUsd);
 
-  // Полезная ценность полученных на карту долларов по базовому курсу (одинаковая база сравнения со Способом 1)
-  const usefulValueRub = round2(finalCardUsd * wbRate);
+  // Полезная ценность полученных на карту долларов по базовому курсу обмена
+  const usefulValueRub = round2(finalCardUsd * effectiveWbRubPerUsd);
   const totalCommissionRubEquivalent = Math.max(0, round2(totalRub - usefulValueRub));
   const totalLossPercent =
     totalRub > 0 ? round2((totalCommissionRubEquivalent / totalRub) * 100) : 0;
@@ -540,10 +567,21 @@ export function calculateWhitebirdRoute(params: CalculatorParams): WhitebirdRout
     walletBalanceUsd > 0 ? round2(totalRub / walletBalanceUsd) : 0;
 
   const networkFeeDecimals = actualNetworkFeeCoins === 0 ? 0 : actualNetworkFeeCoins < 1 ? 3 : 5;
+  const formatRateUpTo4 = (val: number) =>
+    new Intl.NumberFormat('ru-RU', {
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 4,
+    }).format(val);
+
+  const wbRateText =
+    wbCoinRubRate > 0 ? `${formatRateUpTo4(wbCoinRubRate)} ₽/${assetMeta.symbol}` : 'не указан';
+  const zarubCoinRateText =
+    coinUsdRate > 0 ? `1 ${assetMeta.symbol} = $${formatRateUpTo4(coinUsdRate)}` : 'не указан';
+
   const coinRateSubtitle =
-    coinUsdRate !== 1
-      ? `Курс Zarub: 1 ${assetMeta.symbol} ≈ $${formatNumber(coinUsdRate, 2)} (~${formatNumber(coinRubRate, 2)} ₽) · Комиссия Whitebird ${formatNumber(wbFeePercent, 1)}%`
-      : `Курс ${formatNumber(wbRate, 2)} ₽/USDT · Комиссия сервиса ${formatNumber(wbFeePercent, 1)}%`;
+    assetMeta.symbol !== 'USDT'
+      ? `Курс Whitebird: ${wbRateText} · Курс Zarub: ${zarubCoinRateText} · Комиссия Whitebird ${formatNumber(wbFeePercent, 1)}%`
+      : `Курс Whitebird: ${wbRateText} · Курс Zarub: 1 USDT = $1 · Комиссия сервиса ${formatNumber(wbFeePercent, 1)}%`;
 
   const steps = [
     {
@@ -620,6 +658,19 @@ export function compareRoutes(params: CalculatorParams): ComparisonSummary {
   const sbp = calculateSbpRoute(params);
   const whitebird = calculateWhitebirdRoute(params);
 
+  // Сравнение маршрутов возможно только когда рассчитаны оба способа
+  if (sbp.totalRub <= 0 || whitebird.totalRub <= 0) {
+    return {
+      sbp,
+      whitebird,
+      cheaperMethod: 'equal',
+      savingsRub: 0,
+      extraCardUsd: 0,
+      extraWalletUsd: 0,
+      savingsPercent: 0,
+    };
+  }
+
   if (params.mode === 'budget_rub') {
     const diffCardUsd = round2(whitebird.finalCardUsd - sbp.finalCardUsd);
     const diffWalletUsd = round2(whitebird.walletBalanceUsd - sbp.walletBalanceUsd);
@@ -631,7 +682,12 @@ export function compareRoutes(params: CalculatorParams): ComparisonSummary {
 
     const extraCardUsd = Math.abs(diffCardUsd);
     const extraWalletUsd = Math.abs(diffWalletUsd);
-    const referenceRate = params.whitebirdUsdtRate || 82.37;
+    const wbCoinRubRate = getWhitebirdCoinRubRate(params);
+    const coinUsdRate = getCryptoCoinUsdRate(params);
+    const referenceRate =
+      wbCoinRubRate > 0 && coinUsdRate > 0
+        ? wbCoinRubRate / coinUsdRate
+        : Number(params.zarubUsdRate) || 100;
     const savingsRub = round2(extraCardUsd * referenceRate);
     const minCard = Math.min(sbp.finalCardUsd, whitebird.finalCardUsd);
     const savingsPercent = minCard > 0 ? round2((extraCardUsd / minCard) * 100) : 0;

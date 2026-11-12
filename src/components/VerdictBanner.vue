@@ -96,7 +96,18 @@ defineProps<{
       <div v-else class="flex items-center gap-3 pt-1">
         <Scale class="h-6 w-6 text-slate-400 shrink-0" />
         <h2 class="font-display text-lg font-semibold text-slate-700 dark:text-slate-300">
-          Введите сумму пополнения для расчёта и сравнения маршрутов
+          <template v-if="summary.sbp.totalRub === 0 && summary.whitebird.totalRub === 0">
+            Укажите курсы обмена ниже для расчёта и сравнения маршрутов
+          </template>
+          <template v-else-if="summary.sbp.totalRub > 0 && summary.whitebird.totalRub === 0">
+            Способ 1 рассчитан ({{ formatRub(summary.sbp.totalRub) }}) — укажите курсы Whitebird и
+            Zarub для сравнения со Способом 2
+          </template>
+          <template v-else-if="summary.sbp.totalRub === 0 && summary.whitebird.totalRub > 0">
+            Способ 2 рассчитан ({{ formatRub(summary.whitebird.totalRub) }}) — укажите курс 1 USD в
+            Zarub.io (СБП) для сравнения со Способом 1
+          </template>
+          <template v-else> Стоимость обоих маршрутов одинакова при заданных параметрах </template>
         </h2>
       </div>
     </div>

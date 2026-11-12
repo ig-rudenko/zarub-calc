@@ -2,7 +2,7 @@
 import { computed, ref } from 'vue';
 import {
   CreditCard,
-  RefreshCw,
+  ExternalLink,
   RotateCcw,
   SlidersHorizontal,
   Wallet,
@@ -26,17 +26,14 @@ import RateHistoryPopover from './RateHistoryPopover.vue';
 const props = defineProps<{
   params: CalculatorParams;
   cryptoOptions: CryptoAssetOption[];
-  isLoadingRate: boolean;
-  rateSourceNote: string;
   rateHistory: RateHistoryMap;
 }>();
 
 const emit = defineEmits<{
   setMode: [mode: CalculationMode];
   setCryptoAsset: [assetId: CryptoAssetId];
-  fetchLiveRate: [];
   resetDefaults: [];
-  recordRate: [key: RateHistoryKey, value: number, force?: boolean];
+  recordRate: [key: RateHistoryKey, value: number | null | undefined, force?: boolean];
   deleteRateEntry: [key: RateHistoryKey, id: string];
   selectRateValue: [key: RateHistoryKey, value: number];
 }>();
@@ -44,11 +41,7 @@ const emit = defineEmits<{
 const showAdvancedFees = ref(false);
 
 const activeCryptoMeta = computed(
-  () => CRYPTO_ASSETS[props.params.cryptoAsset] ?? CRYPTO_ASSETS.USDT_TRC20,
-);
-
-const hasExtraCoinRate = computed(
-  () => props.params.cryptoAsset === 'TRX' || props.params.cryptoAsset === 'GRAM',
+  () => CRYPTO_ASSETS[props.params.cryptoAsset] ?? CRYPTO_ASSETS.GRAM,
 );
 
 const quickAmounts = computed(() => {
@@ -97,8 +90,8 @@ const inputLabelText = computed(() => {
           01. Параметры пополнения и курсы обмена
         </h2>
         <p class="mt-0.5 text-xs text-slate-500 dark:text-slate-400">
-          Выберите, от какой суммы отталкиваться: чистыми на карте Visa, на кошельке Zarub или от
-          суммы в рублях
+          Укажите сумму, курс USD в Zarub (СБП), а также курс выбранной криптовалюты в Whitebird и
+          внутри Zarub
         </p>
       </div>
 
@@ -158,12 +151,13 @@ const inputLabelText = computed(() => {
       </div>
     </div>
 
-    <!-- Выровненная по одной горизонтали сетка полей ввода -->
-    <div
-      class="mt-5 grid grid-cols-1 gap-5 items-start"
-      :class="hasExtraCoinRate ? 'md:grid-cols-2 xl:grid-cols-4' : 'md:grid-cols-3'"
-    >
-      <!-- Колонка 1: Поле ввода целевой суммы -->
+    <!-- Выровненная по одной горизонтали сетка из 4 полей:
+         1. Сумма / бюджет (обязательное)
+         2. Курс 1 USD в Zarub.io (СБП) (обязательное)
+         3. Курс выбранной крипты к рублю в Whitebird.io (по выбранному способу 2)
+         4. Курс выбранной крипты к доллару в Zarub.io (по выбранному способу 2; для USDT = 1 к 1) -->
+    <div class="mt-5 grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-5 items-start">
+      <!-- Колонка 1 (Обязательное поле 1): Целевая сумма или бюджет -->
       <div class="flex flex-col">
         <div class="flex h-7 items-center justify-between gap-2 mb-2">
           <label
@@ -181,7 +175,8 @@ const inputLabelText = computed(() => {
             type="number"
             min="0"
             step="any"
-            class="h-12 w-full rounded-lg border border-slate-300 dark:border-slate-700 bg-slate-50/70 dark:bg-slate-800/60 px-3.5 pr-10 font-mono text-lg font-semibold tabular-nums text-slate-900 dark:text-slate-100 focus:border-emerald-600 dark:focus:border-emerald-400 focus:bg-white dark:focus:bg-slate-900 focus:outline-none"
+            placeholder="100"
+            class="h-12 w-full rounded-lg border border-slate-300 dark:border-slate-700 bg-slate-50/70 dark:bg-slate-800/60 px-3.5 pr-10 font-mono text-lg font-semibold tabular-nums text-slate-900 dark:text-slate-100 placeholder:font-normal placeholder:text-sm placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:border-emerald-600 dark:focus:border-emerald-400 focus:bg-white dark:focus:bg-slate-900 focus:outline-none"
           />
           <span
             class="pointer-events-none absolute inset-y-0 right-0 flex items-center pr-3.5 font-mono text-sm font-semibold text-slate-400"
@@ -205,7 +200,7 @@ const inputLabelText = computed(() => {
         </div>
       </div>
 
-      <!-- Колонка 2: Курс доллара в zarub.io (СБП) -->
+      <!-- Колонка 2 (Обязательное поле 2): Курс 1 USD в Zarub.io (СБП) -->
       <div class="flex flex-col">
         <div class="flex h-7 items-center justify-between gap-2 mb-2">
           <label
@@ -219,7 +214,7 @@ const inputLabelText = computed(() => {
             unit-label="₽"
             :current-value="params.zarubUsdRate"
             :entries="rateHistory.zarubUsdRate"
-            :fraction-digits="2"
+            :fraction-digits="4"
             @select-value="(val) => emit('selectRateValue', 'zarubUsdRate', val)"
             @delete-entry="(id) => emit('deleteRateEntry', 'zarubUsdRate', id)"
             @save-current="emit('recordRate', 'zarubUsdRate', params.zarubUsdRate, true)"
@@ -231,9 +226,10 @@ const inputLabelText = computed(() => {
             id="zarub-usd-rate-input"
             v-model.number="params.zarubUsdRate"
             type="number"
-            min="1"
-            step="0.01"
-            class="h-12 w-full rounded-lg border border-slate-300 dark:border-slate-700 bg-slate-50/70 dark:bg-slate-800/60 px-3.5 pr-14 font-mono text-lg font-semibold tabular-nums text-slate-900 dark:text-slate-100 focus:border-blue-600 dark:focus:border-blue-400 focus:bg-white dark:focus:bg-slate-900 focus:outline-none"
+            min="0.0001"
+            step="any"
+            placeholder="Например, 101.50"
+            class="h-12 w-full rounded-lg border border-slate-300 dark:border-slate-700 bg-slate-50/70 dark:bg-slate-800/60 px-3.5 pr-14 font-mono text-lg font-semibold tabular-nums text-slate-900 dark:text-slate-100 placeholder:font-normal placeholder:text-sm placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:border-blue-600 dark:focus:border-blue-400 focus:bg-white dark:focus:bg-slate-900 focus:outline-none"
             @change="emit('recordRate', 'zarubUsdRate', params.zarubUsdRate)"
           />
           <span
@@ -242,141 +238,292 @@ const inputLabelText = computed(() => {
             ₽ / $
           </span>
         </div>
+
+        <div class="mt-2.5 flex min-h-6 items-center">
+          <span class="text-xs text-slate-400 dark:text-slate-500">
+            Для Способа 1 (прямая оплата СБП)
+          </span>
+        </div>
       </div>
 
-      <!-- Колонка 3: Курс USDT в whitebird.io -->
+      <!-- Колонка 3 (Поле Способа 2): Курс выбранной криптовалюты к рублю в Whitebird.io -->
       <div class="flex flex-col">
-        <div class="flex h-7 items-center justify-between gap-2 mb-2">
-          <label
-            for="whitebird-usdt-rate-input"
-            class="inline-flex items-center gap-1.5 text-xs font-medium text-slate-700 dark:text-slate-300 truncate"
-          >
-            <WhitebirdIcon size-class="h-4 w-4" />
-            <span class="truncate">Курс 1 USDT в Whitebird.io</span>
-          </label>
-          <RateHistoryPopover
-            title="Курс 1 USDT в Whitebird"
-            unit-label="₽"
-            :current-value="params.whitebirdUsdtRate"
-            :entries="rateHistory.whitebirdUsdtRate"
-            :fraction-digits="2"
-            @select-value="(val) => emit('selectRateValue', 'whitebirdUsdtRate', val)"
-            @delete-entry="(id) => emit('deleteRateEntry', 'whitebirdUsdtRate', id)"
-            @save-current="emit('recordRate', 'whitebirdUsdtRate', params.whitebirdUsdtRate, true)"
-          />
-        </div>
+        <!-- Вариант GRAM в Whitebird -->
+        <template v-if="params.cryptoAsset === 'GRAM'">
+          <div class="flex h-7 items-center justify-between gap-2 mb-2">
+            <label
+              for="whitebird-gram-rate-input"
+              class="inline-flex items-center gap-1.5 text-xs font-medium text-slate-700 dark:text-slate-300 truncate"
+            >
+              <WhitebirdIcon size-class="h-4 w-4" />
+              <span class="truncate">Курс 1 GRAM в Whitebird.io</span>
+            </label>
+            <RateHistoryPopover
+              title="Курс 1 GRAM в Whitebird (₽)"
+              unit-label="₽"
+              :current-value="params.whitebirdGramRubRate"
+              :entries="rateHistory.whitebirdGramRubRate"
+              :fraction-digits="4"
+              @select-value="(val) => emit('selectRateValue', 'whitebirdGramRubRate', val)"
+              @delete-entry="(id) => emit('deleteRateEntry', 'whitebirdGramRubRate', id)"
+              @save-current="
+                emit('recordRate', 'whitebirdGramRubRate', params.whitebirdGramRubRate, true)
+              "
+            />
+          </div>
 
-        <div class="relative">
-          <input
-            id="whitebird-usdt-rate-input"
-            v-model.number="params.whitebirdUsdtRate"
-            type="number"
-            min="1"
-            step="0.01"
-            class="h-12 w-full rounded-lg border border-slate-300 dark:border-slate-700 bg-slate-50/70 dark:bg-slate-800/60 px-3.5 pr-16 font-mono text-lg font-semibold tabular-nums text-slate-900 dark:text-slate-100 focus:border-emerald-600 dark:focus:border-emerald-400 focus:bg-white dark:focus:bg-slate-900 focus:outline-none"
-            @change="emit('recordRate', 'whitebirdUsdtRate', params.whitebirdUsdtRate)"
-          />
-          <span
-            class="pointer-events-none absolute inset-y-0 right-0 flex items-center pr-3.5 font-mono text-xs font-medium text-slate-400"
-          >
-            ₽ / USDT
-          </span>
-        </div>
+          <div class="relative">
+            <input
+              id="whitebird-gram-rate-input"
+              v-model.number="params.whitebirdGramRubRate"
+              type="number"
+              min="0.0001"
+              step="any"
+              placeholder="Например, 104.6495"
+              class="h-12 w-full rounded-lg border border-slate-300 dark:border-slate-700 bg-slate-50/70 dark:bg-slate-800/60 px-3.5 pr-20 font-mono text-lg font-semibold tabular-nums text-slate-900 dark:text-slate-100 placeholder:font-normal placeholder:text-sm placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:border-emerald-600 dark:focus:border-emerald-400 focus:bg-white dark:focus:bg-slate-900 focus:outline-none"
+              @change="emit('recordRate', 'whitebirdGramRubRate', params.whitebirdGramRubRate)"
+            />
+            <span
+              class="pointer-events-none absolute inset-y-0 right-0 flex items-center pr-3.5 font-mono text-xs font-medium text-slate-400"
+            >
+              ₽ / GRAM
+            </span>
+          </div>
+        </template>
 
-        <!-- Нижняя строка под курсом Whitebird (на одном уровне с быстрыми пресетами) -->
+        <!-- Вариант TRX в Whitebird -->
+        <template v-else-if="params.cryptoAsset === 'TRX'">
+          <div class="flex h-7 items-center justify-between gap-2 mb-2">
+            <label
+              for="whitebird-trx-rate-input"
+              class="inline-flex items-center gap-1.5 text-xs font-medium text-slate-700 dark:text-slate-300 truncate"
+            >
+              <WhitebirdIcon size-class="h-4 w-4" />
+              <span class="truncate">Курс 1 TRX в Whitebird.io</span>
+            </label>
+            <RateHistoryPopover
+              title="Курс 1 TRX в Whitebird (₽)"
+              unit-label="₽"
+              :current-value="params.whitebirdTrxRubRate"
+              :entries="rateHistory.whitebirdTrxRubRate"
+              :fraction-digits="4"
+              @select-value="(val) => emit('selectRateValue', 'whitebirdTrxRubRate', val)"
+              @delete-entry="(id) => emit('deleteRateEntry', 'whitebirdTrxRubRate', id)"
+              @save-current="
+                emit('recordRate', 'whitebirdTrxRubRate', params.whitebirdTrxRubRate, true)
+              "
+            />
+          </div>
+
+          <div class="relative">
+            <input
+              id="whitebird-trx-rate-input"
+              v-model.number="params.whitebirdTrxRubRate"
+              type="number"
+              min="0.0001"
+              step="any"
+              placeholder="Например, 26.3881"
+              class="h-12 w-full rounded-lg border border-slate-300 dark:border-slate-700 bg-slate-50/70 dark:bg-slate-800/60 px-3.5 pr-16 font-mono text-lg font-semibold tabular-nums text-slate-900 dark:text-slate-100 placeholder:font-normal placeholder:text-sm placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:border-emerald-600 dark:focus:border-emerald-400 focus:bg-white dark:focus:bg-slate-900 focus:outline-none"
+              @change="emit('recordRate', 'whitebirdTrxRubRate', params.whitebirdTrxRubRate)"
+            />
+            <span
+              class="pointer-events-none absolute inset-y-0 right-0 flex items-center pr-3.5 font-mono text-xs font-medium text-slate-400"
+            >
+              ₽ / TRX
+            </span>
+          </div>
+        </template>
+
+        <!-- Вариант USDT (TRC-20 или TON) в Whitebird -->
+        <template v-else>
+          <div class="flex h-7 items-center justify-between gap-2 mb-2">
+            <label
+              for="whitebird-usdt-rate-input"
+              class="inline-flex items-center gap-1.5 text-xs font-medium text-slate-700 dark:text-slate-300 truncate"
+            >
+              <WhitebirdIcon size-class="h-4 w-4" />
+              <span class="truncate">Курс 1 USDT в Whitebird.io</span>
+            </label>
+            <RateHistoryPopover
+              title="Курс 1 USDT в Whitebird (₽)"
+              unit-label="₽"
+              :current-value="params.whitebirdUsdtRate"
+              :entries="rateHistory.whitebirdUsdtRate"
+              :fraction-digits="4"
+              @select-value="(val) => emit('selectRateValue', 'whitebirdUsdtRate', val)"
+              @delete-entry="(id) => emit('deleteRateEntry', 'whitebirdUsdtRate', id)"
+              @save-current="
+                emit('recordRate', 'whitebirdUsdtRate', params.whitebirdUsdtRate, true)
+              "
+            />
+          </div>
+
+          <div class="relative">
+            <input
+              id="whitebird-usdt-rate-input"
+              v-model.number="params.whitebirdUsdtRate"
+              type="number"
+              min="0.0001"
+              step="any"
+              placeholder="Например, 83.5859"
+              class="h-12 w-full rounded-lg border border-slate-300 dark:border-slate-700 bg-slate-50/70 dark:bg-slate-800/60 px-3.5 pr-16 font-mono text-lg font-semibold tabular-nums text-slate-900 dark:text-slate-100 placeholder:font-normal placeholder:text-sm placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:border-emerald-600 dark:focus:border-emerald-400 focus:bg-white dark:focus:bg-slate-900 focus:outline-none"
+              @change="emit('recordRate', 'whitebirdUsdtRate', params.whitebirdUsdtRate)"
+            />
+            <span
+              class="pointer-events-none absolute inset-y-0 right-0 flex items-center pr-3.5 font-mono text-xs font-medium text-slate-400"
+            >
+              ₽ / USDT
+            </span>
+          </div>
+        </template>
+
+        <!-- Ссылка на страницу обменника Whitebird -->
         <div class="mt-2.5 flex min-h-6 flex-wrap items-center justify-between gap-2">
-          <button
-            type="button"
-            :disabled="isLoadingRate"
-            class="inline-flex items-center gap-1.5 text-xs font-medium text-emerald-600 dark:text-emerald-400 hover:underline disabled:opacity-50 whitespace-nowrap shrink-0 cursor-pointer"
-            @click="emit('fetchLiveRate')"
+          <a
+            href="https://whitebird.io/exchanger"
+            target="_blank"
+            rel="noopener noreferrer"
+            class="inline-flex items-center gap-1 text-xs font-medium text-emerald-600 dark:text-emerald-400 hover:underline whitespace-nowrap shrink-0"
           >
-            <RefreshCw class="h-3 w-3" :class="{ 'animate-spin': isLoadingRate }" />
-            <span>{{ isLoadingRate ? 'Загрузка курса...' : 'Загрузить биржевой курс' }}</span>
-          </button>
-          <span v-if="rateSourceNote" class="text-xs text-slate-500 dark:text-slate-400">
-            {{ rateSourceNote }}
-          </span>
+            <span>Курсы: whitebird.io/exchanger</span>
+            <ExternalLink class="h-3 w-3" />
+          </a>
         </div>
       </div>
 
-      <!-- Колонка 4 (условная): Курс 1 TRX или 1 GRAM в Zarub.io — строго на одной линии с остальными полями -->
-      <div v-if="params.cryptoAsset === 'TRX'" class="flex flex-col">
-        <div class="flex h-7 items-center justify-between gap-2 mb-2">
-          <label
-            for="zarub-trx-rate-input"
-            class="inline-flex items-center gap-1.5 text-xs font-medium text-slate-700 dark:text-slate-300 truncate"
-          >
-            <CryptoNetworkIcon asset-id="TRX" size-class="h-4 w-4" />
-            <span class="truncate">Курс 1 TRX в Zarub.io</span>
-          </label>
-          <RateHistoryPopover
-            title="Курс 1 TRX в Zarub ($)"
-            unit-label="$"
-            :current-value="params.zarubTrxUsdRate"
-            :entries="rateHistory.zarubTrxUsdRate"
-            :fraction-digits="3"
-            @select-value="(val) => emit('selectRateValue', 'zarubTrxUsdRate', val)"
-            @delete-entry="(id) => emit('deleteRateEntry', 'zarubTrxUsdRate', id)"
-            @save-current="emit('recordRate', 'zarubTrxUsdRate', params.zarubTrxUsdRate, true)"
-          />
-        </div>
+      <!-- Колонка 4 (Поле Способа 2): Курс выбранной криптовалюты к доллару внутри Zarub.io -->
+      <div class="flex flex-col">
+        <!-- Вариант GRAM в Zarub -->
+        <template v-if="params.cryptoAsset === 'GRAM'">
+          <div class="flex h-7 items-center justify-between gap-2 mb-2">
+            <label
+              for="zarub-gram-rate-input"
+              class="inline-flex items-center gap-1.5 text-xs font-medium text-slate-700 dark:text-slate-300 truncate"
+            >
+              <CryptoNetworkIcon asset-id="GRAM" size-class="h-4 w-4" />
+              <span class="truncate">Курс 1 GRAM в Zarub.io</span>
+            </label>
+            <RateHistoryPopover
+              title="Курс 1 GRAM в Zarub ($)"
+              unit-label="$"
+              :current-value="params.zarubGramUsdRate"
+              :entries="rateHistory.zarubGramUsdRate"
+              :fraction-digits="4"
+              @select-value="(val) => emit('selectRateValue', 'zarubGramUsdRate', val)"
+              @delete-entry="(id) => emit('deleteRateEntry', 'zarubGramUsdRate', id)"
+              @save-current="emit('recordRate', 'zarubGramUsdRate', params.zarubGramUsdRate, true)"
+            />
+          </div>
 
-        <div class="relative">
-          <input
-            id="zarub-trx-rate-input"
-            v-model.number="params.zarubTrxUsdRate"
-            type="number"
-            min="0.001"
-            step="0.01"
-            class="h-12 w-full rounded-lg border border-slate-300 dark:border-slate-700 bg-slate-50/70 dark:bg-slate-800/60 px-3.5 pr-16 font-mono text-lg font-semibold tabular-nums text-slate-900 dark:text-slate-100 focus:border-emerald-600 dark:focus:border-emerald-400 focus:bg-white dark:focus:bg-slate-900 focus:outline-none"
-            @change="emit('recordRate', 'zarubTrxUsdRate', params.zarubTrxUsdRate)"
-          />
-          <span
-            class="pointer-events-none absolute inset-y-0 right-0 flex items-center pr-3.5 font-mono text-xs font-medium text-slate-400"
-          >
-            $ / TRX
-          </span>
-        </div>
-      </div>
+          <div class="relative">
+            <input
+              id="zarub-gram-rate-input"
+              v-model.number="params.zarubGramUsdRate"
+              type="number"
+              min="0.0001"
+              step="any"
+              placeholder="Например, 0.97"
+              class="h-12 w-full rounded-lg border border-slate-300 dark:border-slate-700 bg-slate-50/70 dark:bg-slate-800/60 px-3.5 pr-20 font-mono text-lg font-semibold tabular-nums text-slate-900 dark:text-slate-100 placeholder:font-normal placeholder:text-sm placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:border-emerald-600 dark:focus:border-emerald-400 focus:bg-white dark:focus:bg-slate-900 focus:outline-none"
+              @change="emit('recordRate', 'zarubGramUsdRate', params.zarubGramUsdRate)"
+            />
+            <span
+              class="pointer-events-none absolute inset-y-0 right-0 flex items-center pr-3.5 font-mono text-xs font-medium text-slate-400"
+            >
+              $ / GRAM
+            </span>
+          </div>
 
-      <div v-if="params.cryptoAsset === 'GRAM'" class="flex flex-col">
-        <div class="flex h-7 items-center justify-between gap-2 mb-2">
-          <label
-            for="zarub-gram-rate-input"
-            class="inline-flex items-center gap-1.5 text-xs font-medium text-slate-700 dark:text-slate-300 truncate"
-          >
-            <CryptoNetworkIcon asset-id="GRAM" size-class="h-4 w-4" />
-            <span class="truncate">Курс 1 GRAM в Zarub.io</span>
-          </label>
-          <RateHistoryPopover
-            title="Курс 1 GRAM в Zarub ($)"
-            unit-label="$"
-            :current-value="params.zarubGramUsdRate"
-            :entries="rateHistory.zarubGramUsdRate"
-            :fraction-digits="3"
-            @select-value="(val) => emit('selectRateValue', 'zarubGramUsdRate', val)"
-            @delete-entry="(id) => emit('deleteRateEntry', 'zarubGramUsdRate', id)"
-            @save-current="emit('recordRate', 'zarubGramUsdRate', params.zarubGramUsdRate, true)"
-          />
-        </div>
+          <div class="mt-2.5 flex min-h-6 items-center">
+            <span class="text-xs text-slate-400 dark:text-slate-500">
+              Внутренний курс GRAM к $ в Zarub
+            </span>
+          </div>
+        </template>
 
-        <div class="relative">
-          <input
-            id="zarub-gram-rate-input"
-            v-model.number="params.zarubGramUsdRate"
-            type="number"
-            min="0.001"
-            step="0.01"
-            class="h-12 w-full rounded-lg border border-slate-300 dark:border-slate-700 bg-slate-50/70 dark:bg-slate-800/60 px-3.5 pr-20 font-mono text-lg font-semibold tabular-nums text-slate-900 dark:text-slate-100 focus:border-emerald-600 dark:focus:border-emerald-400 focus:bg-white dark:focus:bg-slate-900 focus:outline-none"
-            @change="emit('recordRate', 'zarubGramUsdRate', params.zarubGramUsdRate)"
-          />
-          <span
-            class="pointer-events-none absolute inset-y-0 right-0 flex items-center pr-3.5 font-mono text-xs font-medium text-slate-400"
-          >
-            $ / GRAM
-          </span>
-        </div>
+        <!-- Вариант TRX в Zarub -->
+        <template v-else-if="params.cryptoAsset === 'TRX'">
+          <div class="flex h-7 items-center justify-between gap-2 mb-2">
+            <label
+              for="zarub-trx-rate-input"
+              class="inline-flex items-center gap-1.5 text-xs font-medium text-slate-700 dark:text-slate-300 truncate"
+            >
+              <CryptoNetworkIcon asset-id="TRX" size-class="h-4 w-4" />
+              <span class="truncate">Курс 1 TRX в Zarub.io</span>
+            </label>
+            <RateHistoryPopover
+              title="Курс 1 TRX в Zarub ($)"
+              unit-label="$"
+              :current-value="params.zarubTrxUsdRate"
+              :entries="rateHistory.zarubTrxUsdRate"
+              :fraction-digits="4"
+              @select-value="(val) => emit('selectRateValue', 'zarubTrxUsdRate', val)"
+              @delete-entry="(id) => emit('deleteRateEntry', 'zarubTrxUsdRate', id)"
+              @save-current="emit('recordRate', 'zarubTrxUsdRate', params.zarubTrxUsdRate, true)"
+            />
+          </div>
+
+          <div class="relative">
+            <input
+              id="zarub-trx-rate-input"
+              v-model.number="params.zarubTrxUsdRate"
+              type="number"
+              min="0.0001"
+              step="any"
+              placeholder="Например, 0.28"
+              class="h-12 w-full rounded-lg border border-slate-300 dark:border-slate-700 bg-slate-50/70 dark:bg-slate-800/60 px-3.5 pr-16 font-mono text-lg font-semibold tabular-nums text-slate-900 dark:text-slate-100 placeholder:font-normal placeholder:text-sm placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:border-emerald-600 dark:focus:border-emerald-400 focus:bg-white dark:focus:bg-slate-900 focus:outline-none"
+              @change="emit('recordRate', 'zarubTrxUsdRate', params.zarubTrxUsdRate)"
+            />
+            <span
+              class="pointer-events-none absolute inset-y-0 right-0 flex items-center pr-3.5 font-mono text-xs font-medium text-slate-400"
+            >
+              $ / TRX
+            </span>
+          </div>
+
+          <div class="mt-2.5 flex min-h-6 items-center">
+            <span class="text-xs text-slate-400 dark:text-slate-500">
+              Внутренний курс TRX к $ в Zarub
+            </span>
+          </div>
+        </template>
+
+        <!-- Вариант USDT (TRC-20 или TON) в Zarub — фиксированный курс 1 к 1 -->
+        <template v-else>
+          <div class="flex h-7 items-center justify-between gap-2 mb-2">
+            <label
+              for="zarub-usdt-rate-input"
+              class="inline-flex items-center gap-1.5 text-xs font-medium text-slate-700 dark:text-slate-300 truncate"
+            >
+              <CryptoNetworkIcon :asset-id="params.cryptoAsset" size-class="h-4 w-4" />
+              <span class="truncate">Курс 1 USDT в Zarub.io</span>
+            </label>
+            <span class="font-mono text-xs font-medium text-slate-400 dark:text-slate-500">
+              1 к 1
+            </span>
+          </div>
+
+          <div class="relative">
+            <input
+              id="zarub-usdt-rate-input"
+              :value="1"
+              type="number"
+              readonly
+              disabled
+              class="h-12 w-full rounded-lg border border-slate-200 dark:border-slate-800 bg-slate-100/80 dark:bg-slate-800/40 px-3.5 pr-16 font-mono text-lg font-semibold tabular-nums text-slate-500 dark:text-slate-400 cursor-not-allowed"
+            />
+            <span
+              class="pointer-events-none absolute inset-y-0 right-0 flex items-center pr-3.5 font-mono text-xs font-medium text-slate-400"
+            >
+              $ / USDT
+            </span>
+          </div>
+
+          <div class="mt-2.5 flex min-h-6 items-center">
+            <span class="text-xs text-slate-400 dark:text-slate-500">
+              Для USDT курс фиксирован 1 к 1
+            </span>
+          </div>
+        </template>
       </div>
     </div>
 

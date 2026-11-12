@@ -3,7 +3,12 @@ export type CalculationMode = 'card_usd' | 'wallet_usd' | 'budget_rub';
 export type CryptoAssetId = 'USDT_TRC20' | 'USDT_TON' | 'TRX' | 'GRAM';
 
 export type RateHistoryKey =
-  'zarubUsdRate' | 'whitebirdUsdtRate' | 'zarubTrxUsdRate' | 'zarubGramUsdRate';
+  | 'zarubUsdRate'
+  | 'whitebirdUsdtRate'
+  | 'whitebirdTrxRubRate'
+  | 'whitebirdGramRubRate'
+  | 'zarubTrxUsdRate'
+  | 'zarubGramUsdRate';
 
 export interface RateHistoryEntry {
   id: string;
@@ -30,29 +35,33 @@ export interface CalculatorParams {
   mode: CalculationMode;
   /** Значение, введённое пользователем (в $ или в ₽ в зависимости от mode) */
   inputValue: number;
-  /** Внутренний курс USD в сервисе zarub.io при оплате по СБП (по умолчанию 101.50 ₽) */
-  zarubUsdRate: number;
+  /** Внутренний курс USD в сервисе zarub.io при оплате по СБП (по умолчанию пусто — null) */
+  zarubUsdRate: number | null;
   /** Комиссия zarub.io при оплате по СБП в % (по умолчанию 7%) */
   zarubSbpFeePercent: number;
   /** Минимальная комиссия zarub.io при оплате по СБП в ₽ (по умолчанию 1 ₽) */
   zarubSbpMinFeeRub: number;
-  /** Курс покупки криптовалюты в whitebird.io в ₽ за 1 USDT (по умолчанию 82.37 ₽) */
-  whitebirdUsdtRate: number;
+  /** Курс покупки 1 USDT в whitebird.io в ₽ (по умолчанию пусто — null) */
+  whitebirdUsdtRate: number | null;
+  /** Курс покупки 1 TRX в whitebird.io в ₽ (по умолчанию пусто — null) */
+  whitebirdTrxRubRate?: number | null;
+  /** Курс покупки 1 GRAM в whitebird.io в ₽ (по умолчанию пусто — null) */
+  whitebirdGramRubRate?: number | null;
   /** Комиссия сервиса whitebird.io при оплате по СБП в % (2.5% для USDT TRC-20 и GRAM, 3.2% для USDT TON и TRX) */
   whitebirdFeePercent: number;
   /** Комиссия сети блокчейн при выводе из whitebird.io в выбранной монете */
   whitebirdNetworkFeeUsdt: number;
   /** Выбранная криптовалюта / сеть для пополнения zarub.io */
   cryptoAsset: CryptoAssetId;
-  /** Внутренний курс 1 TRX в долларах в zarub.io (по умолчанию 0.28 $) */
-  zarubTrxUsdRate: number;
-  /** Внутренний курс 1 GRAM в долларах в zarub.io (по умолчанию 0.84 $) */
-  zarubGramUsdRate: number;
+  /** Внутренний курс 1 TRX в долларах в zarub.io (например 0.28 $, по умолчанию пусто — null) */
+  zarubTrxUsdRate: number | null;
+  /** Внутренний курс 1 GRAM в долларах в zarub.io (например 0.97 $, по умолчанию пусто — null) */
+  zarubGramUsdRate: number | null;
   /** Комиссия zarub.io за пополнение криптой в % (3% для USDT TRC-20, TRX, GRAM; 5% для USDT TON) */
   zarubCryptoFeePercent: number;
   /** Минимальная комиссия zarub.io за пополнение криптой в $ (по умолчанию 1 $) */
   zarubCryptoMinFeeUsd: number;
-  /** Фиксированная комиссия zarub.io за перевод с внутреннего баланса на карту Visa в % (по умолчанию 1.5%) */
+  /** Фиксированная комированная комиссия zarub.io за перевод с внутреннего баланса на карту Visa в % (по умолчанию 1.5%) */
   zarubCardTransferFeePercent: number;
 }
 
