@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" fill="none">
+  <rect width="64" height="64" rx="16" fill="#0B0F17" />
+  <rect x="2" y="2" width="60" height="60" rx="14" stroke="#1E293B" stroke-width="2" />
+  <!-- Стилизованная карта Visa + обмен валют (Z / $) -->
+  <rect x="12" y="16" width="40" height="28" rx="5" fill="#111827" stroke="#10B981" stroke-width="2.5" />
+  <path d="M12 24H52" stroke="#10B981" stroke-width="2.5" />
+  <rect x="17" y="30" width="10" height="6" rx="1.5" fill="#3B82F6" />
+  <circle cx="43" cy="35" r="4" fill="#10B981" />
+  <circle cx="38" cy="35" r="4" fill="#3B82F6" fill-opacity="0.85" />
+  <!-- Знак выгоды / тренда -->
+  <path d="M20 49L28 49M36 49L44 49" stroke="#64748B" stroke-width="2.5" stroke-linecap="round" />
+</svg>
